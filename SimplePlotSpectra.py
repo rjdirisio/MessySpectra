@@ -23,7 +23,10 @@ class myPlot:
 
         if 'tet' in self.pltdata:
             self.nvibs = 33
-            self.shift = 40
+            if '1He'in self.pltdata:
+                self.shift = 20
+            else:
+                self.shift = 40
             self.eShift = 300
         elif 'final' in self.pltdata:
             self.nvibs = 24
@@ -86,6 +89,136 @@ class myPlot:
             cou[idxC] = 0.0
         return ov,cou
 
+
+    def plotOverlapAndCouplings(self,chunkO,chunkE):
+        print np.amax(chunkO - np.eye(len(chunkO)))
+        plt.matshow(chunkO - np.eye(len(chunkO)))
+        plt.colorbar()
+        # plt.clim(-1,1)
+        plt.savefig('sortedOverlaps_' + self.pltdata)
+        plt.close()
+        plt.matshow(chunkE)
+        plt.colorbar()
+        plt.savefig('sortedCouplings_' + self.pltdata)
+        plt.close()
+
+    def getContributionsAndPlot(self,chunkE,freqFunds,imat,evals,evecs):
+        contrib = open('contributionOfOH_'+self.pltdata,"w+")
+        if 'tet' in self.pltdata:
+            print np.diag(chunkE)
+            someInd = np.argwhere(chunkE == freqFunds[7])[0][0]
+            otherInd = np.argwhere(chunkE == freqFunds[8])[0][0]
+            thirdInd = np.argwhere(chunkE==freqFunds[6])[0][0]
+        elif 'final' in self.pltdata:
+            print 'hihi'
+            someInd = np.argwhere(chunkE == freqFunds[6])[0][0]
+            otherInd = np.argwhere(chunkE == freqFunds[6])[0][0]
+            # otherInd = np.argwhere(chunkE == freqFunds[5])[0][0]
+
+
+
+        if 'Trimer' in self.cfg:
+            contrib.write('E     I      OH-1   OH-2\n')
+            # someInd = 5
+            # otherInd = someInd+1 #other OH stretch fundamental
+            for nevs in range(len(evals)):
+                print 'hi'
+                contrib.write('%5.1f %5.4f %5.3f %5.3f\n' % (
+                evals[nevs], imat[nevs] / np.amax(imat), np.square(evecs[someInd, nevs]),
+                np.square(evecs[otherInd, nevs])))
+
+            sumsquares = np.zeros(2)
+            for nevs in range(len(evals)):
+                # print 'hi'
+                evtest = np.sum(np.square(evecs[:, nevs]))
+                sumsquares[0] += np.square(evecs[someInd, nevs])
+                sumsquares[1] += np.square(evecs[otherInd, nevs])
+                if nevs == 0:
+                    plt.scatter(evals[nevs], np.square(evecs[someInd, nevs]), c='r', label="Totally Symmetric Stretch")
+                    plt.scatter(evals[nevs], np.square(evecs[otherInd, nevs]), c='b', label="Antisymmetric Stretch 1")
+                else:
+                    plt.scatter(evals[nevs], np.square(evecs[someInd, nevs]), c='r')
+                    plt.scatter(evals[nevs], np.square(evecs[otherInd, nevs]), c='b')
+        else:
+            contrib.write('E     I      OH-1   OH-2  OH-3\n')
+            # someInd = 6
+            # otherInd = someInd + 1  # other OH stretch fundamental
+            # thirdInd = otherInd + 1  # other OH stretch fundamental
+            for nevs in range(len(evals)):
+                contrib.write('%5.1f %5.4f %5.3f %5.3f %5.3f\n' % (
+                evals[nevs], imat[nevs] / np.amax(imat), np.square(evecs[someInd, nevs]), np.square(evecs[otherInd, nevs]),np.square(evecs[thirdInd, nevs])))
+            sumsquares = np.zeros(3)
+            for nevs in range(len(evals)):
+                print 'hi'
+                # evtest = np.sum(np.square(evecs[:,nevs]))
+                sumsquares[0] += np.square(evecs[someInd,nevs])
+                sumsquares[1] +=np.square(evecs[otherInd,nevs])
+                sumsquares[2]+=np.square(evecs[thirdInd,nevs])
+                if nevs == 0:
+                    plt.scatter(evals[nevs],np.square(evecs[someInd,nevs]),c='r',label="Totally Symmetric Stretch")
+                    plt.scatter(evals[nevs], np.square(evecs[otherInd,nevs]),c='b',label="Antisymmetric Stretch 1")
+                    plt.scatter(evals[nevs], np.square(evecs[thirdInd,nevs]),c='g',label="Antisymmetric Stretch 2")
+                else:
+                    plt.scatter(evals[nevs], np.square(evecs[someInd, nevs]), c='r')
+                    plt.scatter(evals[nevs], np.square(evecs[otherInd, nevs]), c='b')
+                    plt.scatter(evals[nevs], np.square(evecs[thirdInd, nevs]), c='g')
+        plt.legend(scatterpoints=1,fontsize=8)
+        plt.xlim([800,4000])
+        plt.ylim([0,0.5])
+        plt.savefig("ScatterCoefPlots/sharedProtonContributions"+self.pltdata)
+        plt.close()
+
+
+    def DiagonalizeHamiltonian(self,chunkE,chunkO,chunkMu):
+        print 'original Freqs\n', np.diagonal(chunkE)
+        ev,Q = la.eigh(chunkO)
+        E12 = np.diag(1/np.sqrt(ev))
+        #S12 = np.matmul(Q.T, np.matmul(E12, Q))  # !?!?!??!?!
+        S12 = np.matmul(Q,np.matmul(E12,Q.T)) #!?!?!??!?!
+        fmat = np.dot(S12, np.dot(chunkE, S12))
+        evals, evecs = la.eigh(fmat)
+        #np.savetxt("evecsT_mixed",evecs.T)
+        evals1,evecs1 = sla.eigh(chunkE,chunkO)
+        np.savetxt("evecsT_mixed"+self.pltdata,evecs1.T)
+        test=evecs1.T.dot(chunkO.T)
+        testMu3 = np.diagonal(chunkMu).T
+        # testMu4 = chunkMyMu
+        # print chunkMyMu
+        mumat = np.dot(evecs, np.dot(S12, testMu3))
+        # print np.around(mumat,6) == np.around(testMu4,6)
+        imat2 = np.square(la.norm(mumat,axis=1))
+        imat = np.sum(np.square(mumat),axis=1)
+        return evals,evecs,imat
+
+    def getShiftChunk(self,sortedCouplings, sortedOverlap, sortedMus, sortedMyMus, sortedAssign):
+        chunkE = sortedCouplings[self.center - self.shift + 1:self.center + self.shift + 1,
+                 self.center - self.shift + 1:self.center + self.shift + 1]
+
+        # print 'someind', someInd #get where SPS fundamental is in reduced H
+        # print 'other', otherInd #get other SPS fundamental is in reduced H
+        np.savetxt("FreqsBeingMixed_" + self.pltdata, np.diag(chunkE))
+
+        chunkO = sortedOverlap[self.center - self.shift + 1:self.center + self.shift + 1,
+                 self.center - self.shift + 1:self.center + self.shift + 1]
+        chunkMu = sortedMus[self.center - self.shift + 1:self.center + self.shift + 1,
+                  self.center - self.shift + 1:self.center + self.shift + 1]
+        chunkMyMu = sortedMyMus[self.center - self.shift + 1:self.center + self.shift + 1]
+        chunkAssign = sortedAssign[self.center - self.shift + 1:self.center + self.shift + 1]
+        return chunkE,chunkO,chunkMu,chunkMyMu,chunkAssign
+
+
+    def getEChunk(self,sortedCouplings, sortedOverlap, sortedMus, sortedMyMus, sortedAssign):
+        energy = sortedCouplings[self.center,self.center]
+        qual = (np.diag(sortedCouplings) < (energy+self.eShift)) * (np.diag(sortedCouplings) > (energy-self.eShift))
+        mx = np.where(qual)[0][-1]
+        mn = np.where(qual)[0][0]
+        chunkE = sortedCouplings[mn:mx,mn:mx]
+        chunkO = sortedOverlap[mn:mx,mn:mx]
+        chunkMu = sortedMus[mn:mx,mn:mx]
+        chunkMyMu = sortedMyMus[mn:mx]
+        chunkAssign = sortedAssign[mn:mx]
+        return chunkE,chunkO,chunkMu,chunkMyMu,chunkAssign
+
     def includeCouplings(self, freqFunds, freqOvsC,intFunds,ovInts, assignments):
         freqOvers=freqOvsC[-self.nvibs:]
         freqCombos= freqOvsC[:-self.nvibs]
@@ -108,42 +241,14 @@ class myPlot:
         overMu = np.loadtxt('redH/2mu0'+ self.pltdata)
         comboMu = np.loadtxt('redH/11mu0p'+ self.pltdata)
         print fundMu.shape,overMu.shape,comboMu.shape
-
         diagonalFreq = np.concatenate((np.array([0]),freqFunds, freqOvers,freqCombos))
-        ovp = np.copy(overlap[6:9, 6:25])
-        ovp[(np.around(ovp,7)==1.0)] = 0.0
-        # plt.matshow(ovp)
-        # plt.colorbar()
-        # plt.show()
-        # plt.close()
-        # plt.matshow(couplings[6:9, 6:25])
-        # plt.colorbar()
-        # plt.show()
-
-        # print couplings[4+1,6+1:25]
-        # print assignments[4+1],assignments[6+1:25]
-        # print np.argmax(np.abs(couplings[4+1,6+1:25]))
-        # print couplings[5+1,6+1:25]
-        # print assignments[5+1],assignments[6+1:25]
-        # print np.argmax(np.abs(couplings[5+1,6+1:25]))
+        # ovp = np.copy(overlap[6:9, 6:25])
+        # ovp[(np.around(ovp,7)==1.0)] = 0.0
         np.fill_diagonal(couplings, diagonalFreq) #lay excitations on diagonal
-
-        # print couplings[4 + 1, 111:121]
-        # np.savetxt("cco",couplings)
-        # print assignments[111:121]
-        # print couplings[5 + 1, 131:141]
-        # print assignments[131:141]
-
-        # testIntensities = np.diag(np.concatenate(([0],intFunds,intOvers,intCombos))) #combinations then overtones WRONG ORDER
         mus = np.zeros((len(fundMu)+len(overMu)+len(comboMu)+1,len(fundMu)+len(overMu)+len(comboMu)+1,3))
         myMus = np.vstack((np.array([0, 0, 0]),fundMu, overMu,comboMu))
-
         for p in range(mus.shape[0]):
             mus[p,p,:] = myMus[p]
-
-        # sanityCheck = np.sum(np.square(myMus),axis=1)
-        # print 'sanity check\n',sanityCheck[:25]
-
         idx = np.argsort(np.diag(couplings))
         sortedAssign = assignments[idx]
         sortedOverlap = overlap[idx,:][:,idx]
@@ -153,148 +258,40 @@ class myPlot:
         sortedMyMus = myMus[idx]
         if 'tet' in self.pltdata: #tetramer
             self.center=np.argwhere(sortedCouplings==freqFunds[7])[0,0]
+            if '1He' in self.pltdata:  # tetramer
+                self.center = np.argwhere(sortedCouplings == freqFunds[6])[0, 0]
 
         else:
             self.center=np.argwhere(sortedCouplings==freqFunds[6])[0,0]
 
-        # energy = sortedCouplings[self.center,self.center]
-        # qual = (np.diag(sortedCouplings) < (energy+self.eShift)) * (np.diag(sortedCouplings) > (energy-self.eShift))
-        # mx = np.where(qual)[0][-1]
-        # mn = np.where(qual)[0][0]
-        # chunkE = sortedCouplings[mn:mx,mn:mx]
-
-        chunkE = sortedCouplings[self.center-self.shift+1:self.center+self.shift+1,self.center-self.shift+1:self.center+self.shift+1]
-        if 'allH' and 'tet' in self.pltdata:
-            print np.diag(chunkE)
-            someInd = np.argwhere(chunkE==freqFunds[7])[0][0]
-            otherInd = np.argwhere(chunkE==freqFunds[8])[0][0]
-            # thirdInd = np.argwhere(chunkE==freqFunds[6])[0][0]
-        elif 'allD' and 'tet' in self.pltdata:
-            someInd = np.argwhere(chunkE == freqFunds[6])[0][0]
-            otherInd = np.argwhere(chunkE == freqFunds[7])[0][0]
-        elif ('allH' or 'allD' in self.pltdata) and 'final' in self.pltdata:
-            print 'hihi'
-            # someInd = np.argwhere(chunkE == freqFunds[4])[0][0]
-            # otherInd = np.argwhere(chunkE == freqFunds[5])[0][0]
-        # print 'someind', someInd #get where SPS fundamental is in reduced H
-        # print 'other', otherInd #get other SPS fundamental is in reduced H
-        np.savetxt("FreqsBeingMixed_"+self.pltdata,np.diag(chunkE))
-        chunkO = sortedOverlap[self.center-self.shift+1:self.center+self.shift+1,self.center-self.shift+1:self.center+self.shift+1]
-        print np.amax(chunkO-np.eye(len(chunkO)))
-        plt.matshow(chunkO-np.eye(len(chunkO)))
-        plt.colorbar()
-        # plt.clim(-1,1)
-        plt.savefig('sortedOverlaps_' + self.pltdata)
-        plt.close()
-        plt.matshow(chunkE)
-        plt.colorbar()
-        plt.savefig('sortedCouplings_'+self.pltdata)
-        plt.close()
-
-        chunkMu = sortedMus[self.center-self.shift+1:self.center+self.shift+1,self.center-self.shift+1:self.center+self.shift+1]
-        # chunkTI = sortedTints[self.center-self.shift+1:self.center+self.shift+1,self.center-self.shift+1:self.center+self.shift+1]
-        chunkMyMu = sortedMyMus[self.center-self.shift+1:self.center+self.shift+1]
-        chunkAssign = sortedAssign[self.center-self.shift+1:self.center+self.shift+1]
 
 
+        chunkE,chunkO,chunkMu,chunkMyMu,chunkAssign = self.getEChunk(sortedCouplings,sortedOverlap,sortedMus,sortedMyMus,sortedAssign)
+        chunkE,chunkO,chunkMu,chunkMyMu,chunkAssign = self.getShiftChunk(sortedCouplings, sortedOverlap, sortedMus, sortedMyMus, sortedAssign)
 
+        # chunkE = sortedCouplings[self.center-self.shift+1:self.center+self.shift+1,self.center-self.shift+1:self.center+self.shift+1]
+        # np.savetxt("FreqsBeingMixed_"+self.pltdata,np.diag(chunkE))
+        # chunkO = sortedOverlap[self.center-self.shift+1:self.center+self.shift+1,self.center-self.shift+1:self.center+self.shift+1]
+        # chunkMu = sortedMus[self.center-self.shift+1:self.center+self.shift+1,self.center-self.shift+1:self.center+self.shift+1]
+        # chunkMyMu = sortedMyMus[self.center-self.shift+1:self.center+self.shift+1]
+        # chunkAssign = sortedAssign[self.center-self.shift+1:self.center+self.shift+1]
+
+        self.plotOverlapAndCouplings(chunkO, chunkE)
         self.getLargeCouplings(chunkE,chunkAssign,300)
+        evals,evecs,imat = self.DiagonalizeHamiltonian(chunkE,chunkO,chunkMu)
+        # plt.matshow(np.square(evecs.T))
+        # plt.colorbar()
+        # plt.show()
+        self.getContributionsAndPlot(chunkE, freqFunds, imat, evals, evecs)
 
-
-
-        print 'original Freqs\n', np.diagonal(chunkE)
-
-        ev,Q = la.eigh(chunkO)
-        E12 = np.diag(1/np.sqrt(ev))
-        #S12 = np.matmul(Q.T, np.matmul(E12, Q))  # !?!?!??!?!
-        S12 = np.matmul(Q,np.matmul(E12,Q.T)) #!?!?!??!?!
-        fmat = np.dot(S12, np.dot(chunkE, S12))
-        evals, evecs = la.eigh(fmat)
-        #np.savetxt("evecsT_mixed",evecs.T)
-        evals1,evecs1 = sla.eigh(chunkE,chunkO)
-        np.savetxt("evecsT_mixed"+self.pltdata,evecs1.T)
-        test=evecs1.T.dot(chunkO.T)
-        testMu3 = np.diagonal(chunkMu).T
-        testMu4 = chunkMyMu
-        print chunkMyMu
-        mumat = np.dot(evecs, np.dot(S12, testMu3))
-        print np.around(mumat,6) == np.around(testMu4,6)
-        imat2 = np.square(la.norm(mumat,axis=1))
-        imat = np.sum(np.square(mumat),axis=1)
-
-        contrib = open('contributionOfOH_'+self.pltdata,"w+")
-        # #!~!!!!!!!!!!!!!!!!!!
-        # someInd = len(chunkE)-self.shift#OH stretch fundamental
-        if 'Trimer' in self.cfg:
-            contrib.write('E     I      OH-1   OH-2\n')
-            someInd = 5
-            otherInd = someInd+1 #other OH stretch fundamental
-            for nevs in range(len(evals)):
-                print 'hi'
-                contrib.write('%5.1f %5.4f %5.3f %5.3f\n' % (
-                evals[nevs], imat[nevs] / np.amax(imat), np.square(evecs[someInd, nevs]),
-                np.square(evecs[otherInd, nevs])))
-
-            sumsquares = np.zeros(2)
-            for nevs in range(len(evals)):
-                print 'hi'
-                evtest = np.sum(np.square(evecs[:, nevs]))
-                sumsquares[0] += np.square(evecs[someInd, nevs])
-                sumsquares[1] += np.square(evecs[otherInd, nevs])
-                if nevs == 0:
-                    plt.scatter(evals[nevs], np.square(evecs[someInd, nevs]), c='r', label="Totally Symmetric Stretch")
-                    plt.scatter(evals[nevs], np.square(evecs[otherInd, nevs]), c='b', label="Antisymmetric Stretch 1")
-                else:
-                    plt.scatter(evals[nevs], np.square(evecs[someInd, nevs]), c='r')
-                    plt.scatter(evals[nevs], np.square(evecs[otherInd, nevs]), c='b')
-            plt.legend()
-            plt.xlim([800, 4000])
-            plt.ylim([0, 0.5])
-            plt.savefig("sharedProtonContributions" + self.pltdata)
-            plt.close()
-        else:
-            contrib.write('E     I      OH-1   OH-2  OH-3\n')
-            someInd = 6
-            otherInd = someInd + 1  # other OH stretch fundamental
-            thirdInd = otherInd + 1  # other OH stretch fundamental
-            for nevs in range(len(evals)):
-                contrib.write('%5.1f %5.4f %5.3f %5.3f %5.3f\n' % (
-                evals[nevs], imat[nevs] / np.amax(imat), np.square(evecs[someInd, nevs]), np.square(evecs[otherInd, nevs]),np.square(evecs[thirdInd, nevs])))
-            sumsquares = np.zeros(3)
-            for nevs in range(len(evals)):
-                print 'hi'
-                evtest = np.sum(np.square(evecs[:,nevs]))
-                sumsquares[0] += np.square(evecs[someInd,nevs])
-                sumsquares[1] +=np.square(evecs[otherInd,nevs])
-                sumsquares[2]+=np.square(evecs[thirdInd,nevs])
-                if nevs == 0:
-                    plt.scatter(evals[nevs],np.square(evecs[someInd,nevs]),c='r',label="Totally Symmetric Stretch")
-                    plt.scatter(evals[nevs], np.square(evecs[otherInd,nevs]),c='b',label="Antisymmetric Stretch 1")
-                    plt.scatter(evals[nevs], np.square(evecs[thirdInd,nevs]),c='g',label="Antisymmetric Stretch 2")
-                else:
-                    plt.scatter(evals[nevs], np.square(evecs[someInd, nevs]), c='r')
-                    plt.scatter(evals[nevs], np.square(evecs[otherInd, nevs]), c='b')
-                    plt.scatter(evals[nevs], np.square(evecs[thirdInd, nevs]), c='g')
-            plt.legend()
-            plt.xlim([800,4000])
-            plt.ylim([0,0.5])
-            plt.savefig("sharedProtonContributions"+self.pltdata)
-            plt.close()
-        print 'sumsquares',sumsquares
+        # print 'sumsquares',sumsquares
         print 'hi'
         #contrib.write('%5.9f' % np.sum(np.square(evecs[:, someInd])))
         #contrib.write('%5.9f' % np.sum(np.square(evecs[:, otherInd])))
         #contrib.close()
-        #print 'evals'
-        # print evals
-        # print 'evecs'
-        # print evecs
-        # print np.sum(imat)
-        # print np.sum(chunkTI)
-        # print 'wut'
-        #
         # print np.c_[evals,imat]
         return evals, imat
+
 
     def gauss(self, E, freq, inten,less):
         # inten*=2
@@ -309,14 +306,14 @@ class myPlot:
         artShift = False
         if artShift:
             print 'ADDING ARTIFICIAL SHIFT'
-            self.pltdata=self.pltdata+'shifted'
-            arbsh = (2600-1750-250-150-50) #400
-            if 'allH' and 'tet' in self.pltdata:
-                idd=np.argwhere(np.logical_and(freq>=1750, freq<=2700))
-                freq[idd]+=arbsh
-            elif 'allD' and 'tet' in self.pltdata:
-                idd=np.argwhere(np.logical_and(freq>=1375, freq<=2325))
-                freq[idd]+=(1/np.sqrt(2))*arbsh #282
+            # self.pltdata=self.pltdata+'shifted'
+            # arbsh = (2600-1750-250-150-50) #400
+            # if 'allH' and 'tet' in self.pltdata:
+            #     idd=np.argwhere(np.logical_and(freq>=1750, freq<=2700))
+            #     freq[idd]+=arbsh
+            # elif 'allD' and 'tet' in self.pltdata:
+            #     idd=np.argwhere(np.logical_and(freq>=1375, freq<=2325))
+            #     freq[idd]+=(1/np.sqrt(2))*arbsh #282
 
         for i in range(len(freq)):
             g += inten[i] * np.exp(-np.square(E - freq[i]) / (np.square(broad)))
@@ -587,16 +584,8 @@ mp.plotSpec()
 mp = myPlot('TetramerNewDefsEck','fSymtet_allDrnspc_justOThenCartOEck',mix=True,stix=True,pltVCI=False)
 mp.plotSpec()
 
-# mp = myPlot('TrimerNewDefsEck_YZ','final_allHrnspc_YzFirstONePLanar',mix=False,stix=True,pltVCI=True)
-# mp.plotSpec()
-#
-# mp = myPlot('TrimerNewDefsEck','final_allDrnspc',mix=False,stix=True,pltVCI=True)
-# mp.plotSpec()
-#
-# mp = myPlot('TrimerNewDefsEck','final_allDrnspc',mix=True,stix=True,pltVCI=True)
-# mp.plotSpec()
-# mp = myPlot('fSymTetD_2Ecks','fSymtet_allDregEckEckEck',mix=False,stix=True)
-# mp.plotSpec()
-#
-# mp = myPlot('fSymTetD_2Ecks','fSymtet_allDregEckEckEck',mix=True,stix=True)
-# mp.plotSpec()
+mp = myPlot('TetramerNewDefsEck','fSymtet_1Hernspc_justOThenCartOEck',mix=False,stix=True,pltVCI=False)
+mp.plotSpec()
+
+mp = myPlot('TetramerNewDefsEck','fSymtet_1Hernspc_justOThenCartOEck',mix=True,stix=True,pltVCI=False)
+mp.plotSpec()
