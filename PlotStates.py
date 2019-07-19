@@ -33,6 +33,6 @@ def plotSpec(pltdata):
         plt.xlim([800,4000])
     else:
         plt.xlim([800,3500])
-    plt.savefig(pltdata+'states.png')
+    plt.savefig('densityOfStates/'+pltdata+'states.png')
 plotSpec('fSymtet_allHrnspc_justOThenCartOEck')
 plotSpec('fSymtet_allDrnspc_justOThenCartOEck')

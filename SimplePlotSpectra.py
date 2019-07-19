@@ -27,11 +27,13 @@ class myPlot:
                 self.shift = 20
             else:
                 self.shift = 40
-            self.eShift = 300
+            self.eShift = 600
         elif 'final' in self.pltdata:
             self.nvibs = 24
             self.shift = 25
-            self.eShift = 150
+            self.eShift = 200
+        self.mx = None
+        self.mn = None
 
     def normAll(self,freqs,ints,num,assign=[]):
         fundFreqG800Index = np.where(freqs >= num)
@@ -67,7 +69,7 @@ class myPlot:
             rowInds = bigCouple[:, 0]
             colInds = bigCouple[:,1]  # These are the rows and columns that will correspond to a certain assignment, since we know that the indices in the H matrix correspond to.
             bigCouplings = np.hstack((energies[:, np.newaxis], chunkAssign[rowInds], chunkAssign[colInds]))
-            np.savetxt("bigCoupleAssignments" + self.pltdata, bigCouplings[bigCouplings[:,0].argsort()], fmt='%i')
+            np.savetxt("bigCouplings/bigCoupleAssignments" + self.pltdata, bigCouplings[bigCouplings[:,0].argsort()], fmt='%i')
 
 
 
@@ -95,28 +97,36 @@ class myPlot:
         plt.matshow(chunkO - np.eye(len(chunkO)))
         plt.colorbar()
         # plt.clim(-1,1)
-        plt.savefig('sortedOverlaps_' + self.pltdata)
+        plt.savefig('Matrices/sortedOverlaps_' + self.pltdata)
         plt.close()
         plt.matshow(chunkE)
         plt.colorbar()
-        plt.savefig('sortedCouplings_' + self.pltdata)
+        plt.savefig('Matrices/sortedCouplings_' + self.pltdata)
         plt.close()
 
-    def getContributionsAndPlot(self,chunkE,freqFunds,imat,evals,evecs):
-        contrib = open('contributionOfOH_'+self.pltdata,"w+")
+    def getContributionsAndPlot(self,chunkE,freqFunds,imat,evals,evecs,chunkAssign):
+        topC = open("topContributions/contr_"+self.pltdata,"w+")
+        topC.write('E     I      State (pair)   Coef^2\n')
+        for nevs in range(len(evals)):
+            stAs=chunkAssign[np.argmax(np.square(evecs[:, nevs]))]
+            topC.write('%5.1f, %5.4f, %2.0f %2.0f , %5.3f\n' % (evals[nevs],imat[nevs],stAs[0],stAs[1],np.square(np.amax(evecs[:,nevs]))))
+        topC.close()
+        contrib = open('sharedProtonCoefs/contributionOfOH_'+self.pltdata,"w+")
         if 'tet' in self.pltdata:
             print np.diag(chunkE)
-            someInd = np.argwhere(chunkE == freqFunds[7])[0][0]
-            otherInd = np.argwhere(chunkE == freqFunds[8])[0][0]
-            thirdInd = np.argwhere(chunkE==freqFunds[6])[0][0]
+            if '1He' in self.pltdata:
+                someInd = np.argwhere(chunkE == freqFunds[6])[0][0]
+                otherInd = np.argwhere(chunkE == freqFunds[6])[0][0]
+                thirdInd = np.argwhere(chunkE==freqFunds[6])[0][0]
+            else:
+                someInd = np.argwhere(chunkE == freqFunds[7])[0][0]
+                otherInd = np.argwhere(chunkE == freqFunds[8])[0][0]
+                thirdInd = np.argwhere(chunkE == freqFunds[6])[0][0]
         elif 'final' in self.pltdata:
             print 'hihi'
             someInd = np.argwhere(chunkE == freqFunds[6])[0][0]
             otherInd = np.argwhere(chunkE == freqFunds[6])[0][0]
             # otherInd = np.argwhere(chunkE == freqFunds[5])[0][0]
-
-
-
         if 'Trimer' in self.cfg:
             contrib.write('E     I      OH-1   OH-2\n')
             # someInd = 5
@@ -141,9 +151,6 @@ class myPlot:
                     plt.scatter(evals[nevs], np.square(evecs[otherInd, nevs]), c='b')
         else:
             contrib.write('E     I      OH-1   OH-2  OH-3\n')
-            # someInd = 6
-            # otherInd = someInd + 1  # other OH stretch fundamental
-            # thirdInd = otherInd + 1  # other OH stretch fundamental
             for nevs in range(len(evals)):
                 contrib.write('%5.1f %5.4f %5.3f %5.3f %5.3f\n' % (
                 evals[nevs], imat[nevs] / np.amax(imat), np.square(evecs[someInd, nevs]), np.square(evecs[otherInd, nevs]),np.square(evecs[thirdInd, nevs])))
@@ -162,6 +169,7 @@ class myPlot:
                     plt.scatter(evals[nevs], np.square(evecs[someInd, nevs]), c='r')
                     plt.scatter(evals[nevs], np.square(evecs[otherInd, nevs]), c='b')
                     plt.scatter(evals[nevs], np.square(evecs[thirdInd, nevs]), c='g')
+        contrib.close()
         plt.legend(scatterpoints=1,fontsize=8)
         plt.xlim([800,4000])
         plt.ylim([0,0.5])
@@ -179,8 +187,8 @@ class myPlot:
         evals, evecs = la.eigh(fmat)
         #np.savetxt("evecsT_mixed",evecs.T)
         evals1,evecs1 = sla.eigh(chunkE,chunkO)
-        np.savetxt("evecsT_mixed"+self.pltdata,evecs1.T)
-        test=evecs1.T.dot(chunkO.T)
+        # np.savetxt("evecsT_mixed"+self.pltdata,evecs1.T)
+        # test=evecs1.T.dot(chunkO.T)
         testMu3 = np.diagonal(chunkMu).T
         # testMu4 = chunkMyMu
         # print chunkMyMu
@@ -194,9 +202,7 @@ class myPlot:
         chunkE = sortedCouplings[self.center - self.shift + 1:self.center + self.shift + 1,
                  self.center - self.shift + 1:self.center + self.shift + 1]
 
-        # print 'someind', someInd #get where SPS fundamental is in reduced H
-        # print 'other', otherInd #get other SPS fundamental is in reduced H
-        np.savetxt("FreqsBeingMixed_" + self.pltdata, np.diag(chunkE))
+        # np.savetxt("FreqsBeingMixed_" + self.pltdata, np.diag(chunkE))
 
         chunkO = sortedOverlap[self.center - self.shift + 1:self.center + self.shift + 1,
                  self.center - self.shift + 1:self.center + self.shift + 1]
@@ -210,20 +216,18 @@ class myPlot:
     def getEChunk(self,sortedCouplings, sortedOverlap, sortedMus, sortedMyMus, sortedAssign):
         energy = sortedCouplings[self.center,self.center]
         qual = (np.diag(sortedCouplings) < (energy+self.eShift)) * (np.diag(sortedCouplings) > (energy-self.eShift))
-        mx = np.where(qual)[0][-1]
-        mn = np.where(qual)[0][0]
-        chunkE = sortedCouplings[mn:mx,mn:mx]
-        chunkO = sortedOverlap[mn:mx,mn:mx]
-        chunkMu = sortedMus[mn:mx,mn:mx]
-        chunkMyMu = sortedMyMus[mn:mx]
-        chunkAssign = sortedAssign[mn:mx]
+        self.mx = np.where(qual)[0][-1]
+        self.mn = np.where(qual)[0][0]
+        chunkE = sortedCouplings[self.mn:self.mx,self.mn:self.mx]
+        chunkO = sortedOverlap[self.mn:self.mx,self.mn:self.mx]
+        chunkMu = sortedMus[self.mn:self.mx,self.mn:self.mx]
+        chunkMyMu = sortedMyMus[self.mn:self.mx]
+        chunkAssign = sortedAssign[self.mn:self.mx]
         return chunkE,chunkO,chunkMu,chunkMyMu,chunkAssign
 
-    def includeCouplings(self, freqFunds, freqOvsC,intFunds,ovInts, assignments):
+    def includeCouplings(self, freqFunds, freqOvsC, assignments):
         freqOvers=freqOvsC[-self.nvibs:]
         freqCombos= freqOvsC[:-self.nvibs]
-        intOvers = ovInts[-self.nvibs:]
-        intCombos= ovInts[:-self.nvibs]
 
         print self.pltdata
         assignments=np.column_stack((np.array([-1,-1]),assignments.T)).T
@@ -267,7 +271,7 @@ class myPlot:
 
 
         chunkE,chunkO,chunkMu,chunkMyMu,chunkAssign = self.getEChunk(sortedCouplings,sortedOverlap,sortedMus,sortedMyMus,sortedAssign)
-        chunkE,chunkO,chunkMu,chunkMyMu,chunkAssign = self.getShiftChunk(sortedCouplings, sortedOverlap, sortedMus, sortedMyMus, sortedAssign)
+        # chunkE,chunkO,chunkMu,chunkMyMu,chunkAssign = self.getShiftChunk(sortedCouplings, sortedOverlap, sortedMus, sortedMyMus, sortedAssign)
 
         # chunkE = sortedCouplings[self.center-self.shift+1:self.center+self.shift+1,self.center-self.shift+1:self.center+self.shift+1]
         # np.savetxt("FreqsBeingMixed_"+self.pltdata,np.diag(chunkE))
@@ -282,7 +286,7 @@ class myPlot:
         # plt.matshow(np.square(evecs.T))
         # plt.colorbar()
         # plt.show()
-        self.getContributionsAndPlot(chunkE, freqFunds, imat, evals, evecs)
+        self.getContributionsAndPlot(chunkE, freqFunds, imat, evals, evecs,chunkAssign)
 
         # print 'sumsquares',sumsquares
         print 'hi'
@@ -301,7 +305,6 @@ class myPlot:
             broad=25
         elif 'allD' or 'final' in self.pltdata:
             broad = 20
-
         g = np.zeros(len(E))
         artShift = False
         if artShift:
@@ -316,7 +319,8 @@ class myPlot:
             #     freq[idd]+=(1/np.sqrt(2))*arbsh #282
 
         for i in range(len(freq)):
-            g += inten[i] * np.exp(-np.square(E - freq[i]) / (np.square(broad)))
+            # (1/(broad*np.sqrt(2*np.pi)))*
+            g += inten[i] * np.exp(-np.square(E - freq[i]) / (2.0*np.square(broad)))
         if np.amax(g) > 1:
             g/=np.amax(g)
         plt.rc('text', usetex=True)
@@ -326,31 +330,24 @@ class myPlot:
             plt.fill_between(E, g, color='r', alpha=0.5,label='GSA')
         else:
             plt.fill_between(E, g, color='b', alpha=0.5, label='GSA')
-        #plt.stem(freq,np.ones(len(freq)),linefmt='grey',markerfmt='')
-        #plt.show()
-        #plt.stem(np.append(freq[:(self.center - self.shift-less)], freq[(self.center + self.shift-less):]),np.append(inten[:(self.center - self.shift-less)], inten[(self.center + self.shift-less):]), 'b', markerfmt=" ", basefmt=" ",label='_nolegend_')
-        #plt.stem(freq[self.center - self.shift-less:self.center + self.shift-less], inten[self.center - self.shift-less:self.center + self.shift-less], 'r', markerfmt=" ", basefmt=" ",label='_nolegend_')
-        #plt.xlim([800,4600])
         plt.xlim([np.amin(E), np.amax(E)])
-        # if 'allH' in self.pltdata:
-        #     print 'asdf'
-        # elif 'allD' in self.pltdata:
-        #     plt.xlim([1000,3000])
         plt.ylim([0, 2])
-        # if 'allD' in self.pltdata:
-        #     plt.xticks(np.arange(600, 4000, 400))
-        # elif '1He' in self.pltdata:
-        #     plt.xticks(np.arange(1000, 4600, 800))
-        # else:
-        #     plt.xticks(np.arange(800, 4600, 400))
         #     #plt.title(self.pltdata)
         plt.ylabel(r'Rel. Intensity')
         plt.xlabel(r'Energy (cm$^{-1}$)')
         plt.gca().tick_params(axis='x',pad=10)
         if self.mix:
             if self.stix:
-                plt.stem(np.append(freq[:(self.center - self.shift-less)], freq[(self.center + self.shift-less):]),np.append(inten[:(self.center - self.shift-less)], inten[(self.center + self.shift-less):]), 'r', markerfmt=" ", basefmt=" ",label='_nolegend_')
-                plt.stem(freq[self.center - self.shift-less:self.center + self.shift-less], inten[self.center - self.shift-less:self.center + self.shift-less], 'g', markerfmt=" ", basefmt=" ",label='_nolegend_')
+                # plt.stem(np.append(freq[:(self.center - self.shift-less)], freq[(self.center + self.shift-less):]),np.append(inten[:(self.center - self.shift-less)], inten[(self.center + self.shift-less):]), 'r', markerfmt=" ", basefmt=" ",label='_nolegend_')
+                # plt.stem(freq[self.center - self.shift-less:self.center + self.shift-less], inten[self.center - self.shift-less:self.center + self.shift-less], 'g', markerfmt=" ", basefmt=" ",label='_nolegend_')
+
+
+                plt.stem(np.append(freq[:(self.mn-less)], freq[(self.mx-less):]),
+                         np.append(inten[:(self.mn-less)], inten[(self.mx-less):]),
+                         'b', markerfmt=" ", basefmt=" ", label='_nolegend_')
+                plt.stem(freq[self.mn-less:self.mx-less],
+                         inten[self.mn-less:self.mx-less], 'k', markerfmt=" ",
+                         basefmt=" ", label='_nolegend_')
 
             if self.pltVCI:
                 if 'allH' in self.pltdata:
@@ -453,7 +450,7 @@ class myPlot:
         plt.close()
 
     def writeAssignSorts(self,asn,fre,inte):
-        fl = open("assignSorted"+self.cfg+self.pltdata,"w+")
+        fl = open("assignmentsPreMix/assignSorted"+self.cfg+self.pltdata,"w+")
         for k in reversed(range(len(asn))):
             fl.write("%-4d %-4d %-7.7f %-7.7f\n" % (asn[k,0],asn[k,1],fre[k],inte[k]))
         fl.close()
@@ -471,9 +468,9 @@ class myPlot:
         fundMu = np.loadtxt('redH/1mu0' + self.pltdata)
         overMu = np.loadtxt('redH/2mu0' + self.pltdata)
         comboMu = np.loadtxt('redH/11mu0p' + self.pltdata)
-        interestIntsT = np.square(la.norm(fundMu,axis=1))
-        interestIntsC = np.square(la.norm(comboMu,axis=1))
-        interestIntsO = np.square(la.norm(overMu, axis=1))
+        # interestIntsT = np.square(la.norm(fundMu,axis=1))
+        # interestIntsC = np.square(la.norm(comboMu,axis=1))
+        # interestIntsO = np.square(la.norm(overMu, axis=1))
         # print np.column_stack((np.array(np.concatenate((interestInts,interestInts2))),np.array(np.concatenate((interestIntsT,interestInts2T,interestInts2pT)))))
         # print np.around(np.array(np.concatenate((interestInts,interestInts2))),1)==np.around(np.array(np.concatenate((interestIntsT,interestInts2T,interestInts2pT))),1)
         # print np.array(np.concatenate((interestInts,interestInts2)))-np.array(np.concatenate((interestIntsT,interestInts2T,interestInts2pT)))
@@ -497,7 +494,7 @@ class myPlot:
         sortedTotalInts = totalInts[sortInd]
         sortedTotalAssign = totalAssign[sortInd]
         if self.mix:
-            newFreqs, newInts = self.includeCouplings(interestfreqs, interestfreqs2, interestInts, interestInts2,totalAssign)
+            newFreqs, newInts = self.includeCouplings(interestfreqs, interestfreqs2,totalAssign)
             totalInts = np.concatenate((interestInts, interestInts2))
             totalFreqs = np.concatenate((interestfreqs, interestfreqs2))
             sortInd = totalFreqs.argsort()
@@ -505,26 +502,30 @@ class myPlot:
             testSortI = np.copy(sortedTotalInts)
             testSortF = np.copy(sortedTotalFreqs)
             sortedTotalInts = totalInts[sortInd]
-            print np.sum(totalInts)
-            print 'wut'
-            print np.around(sortedTotalFreqs[self.center-self.shift:self.center+self.shift],8) == np.around(newFreqs,8)
-            # print sortedTotalFreqs[self.center-self.shift:self.center+self.shift]==newFreqs
-            print np.around(sortedTotalInts[self.center - self.shift:self.center + self.shift], 8) == np.around(
-                newInts, 8)
+            # print np.sum(totalInts)
+            # print 'wut'
+            # print np.around(sortedTotalFreqs[self.center-self.shift:self.center+self.shift],8) == np.around(newFreqs,8)
+            # # print sortedTotalFreqs[self.center-self.shift:self.center+self.shift]==newFreqs
+            # print np.around(sortedTotalInts[self.center - self.shift:self.center + self.shift], 8) == np.around(
+            #     newInts, 8)
+            # print np.around(sortedTotalInts[self.center-self.shift:self.center+self.shift],5) == np.around(newInts,5)
 
-            print np.around(sortedTotalInts[self.center-self.shift:self.center+self.shift],5) == np.around(newInts,5)
 
-            sortedTotalFreqs[self.center - self.shift:self.center + self.shift] = newFreqs
-            sortedTotalInts[self.center - self.shift:self.center + self.shift] = newInts
-            print np.around(sortedTotalInts, 10) == np.around(testSortI, 10)
-            print np.c_[sortedTotalInts[:],testSortI[:]]
-            #print np.around(sortedTotalFreqs,5)==np.around(testSortF,5)
-            print np.sum(sortedTotalInts)
-            print np.sum(testSortI)
+            # sortedTotalFreqs[self.center - self.shift:self.center + self.shift] = newFreqs
+            # sortedTotalInts[self.center - self.shift:self.center + self.shift] = newInts
+
+            sortedTotalFreqs[self.mn:self.mx] = newFreqs
+            sortedTotalInts[self.mn:self.mx] = newInts
+
+            # print np.around(sortedTotalInts, 10) == np.around(testSortI, 10)
+            # print np.c_[sortedTotalInts[:],testSortI[:]]
+            # #print np.around(sortedTotalFreqs,5)==np.around(testSortF,5)
+            # print np.sum(sortedTotalInts)
+            # print np.sum(testSortI)
             interestfreqsp, interestIntsp, lose = self.normAll(sortedTotalFreqs, sortedTotalInts, normParam)
-            print 'afternorm'
-            print np.around(interestIntsp, 5) == np.around(testSortI, 5)
-            print np.around(interestfreqsp, 5) == np.around(testSortF, 5)
+            # print 'afternorm'
+            # print np.around(interestIntsp, 5) == np.around(testSortI, 5)
+            # print np.around(interestfreqsp, 5) == np.around(testSortF, 5)
 
             sortInd = interestfreqsp.argsort()
             sortedinterestfreqsp = interestfreqsp[sortInd[::-1]]
@@ -566,11 +567,11 @@ mp.plotSpec()
 mp = myPlot('TrimerNewDefsEck','final_allHrnspc_justOThenYzEck',mix=True,stix=False,pltVCI=False)
 mp.plotSpec()
 
-# mp = myPlot('TrimerNewDefsEck','final_allDrnspc_justOThenCartOEck',mix=False,stix=True,pltVCI=False)
-# mp.plotSpec()
-#
-# mp = myPlot('TrimerNewDefsEck','final_allDrnspc_justOThenCartOEck',mix=True,stix=True,pltVCI=False)
-# mp.plotSpec()
+mp = myPlot('TrimerNewDefsEck','final_allDrnspc_justOThenCartOEck',mix=False,stix=True,pltVCI=False)
+mp.plotSpec()
+
+mp = myPlot('TrimerNewDefsEck','final_allDrnspc_justOThenCartOEck',mix=True,stix=True,pltVCI=False)
+mp.plotSpec()
 
 mp = myPlot('TetramerNewDefsEck','fSymtet_allHrnspc_justOThenCartOEck',mix=False,stix=True,pltVCI=False)
 mp.plotSpec()
