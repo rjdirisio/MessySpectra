@@ -5,8 +5,6 @@ import numpy.linalg as la
 import matplotlib.pyplot as plt
 import scipy.linalg as sla
 FundamentalShell = "Fundamentals_"
-exptlPeaks = "redH//allHTesting/spectraTesting/ExperimentalPeaksJCPL"
-VCIPeaks = "redH//allHTesting/spectraTesting/VCIPeaksJCPL"
 ComboShell = "combinationOverrtone_"
 #7       2259.8322404027153
 #6       1869.632661124042   0.051675331356500445
@@ -34,5 +32,6 @@ def plotSpec(pltdata):
     else:
         plt.xlim([800,3500])
     plt.savefig('densityOfStates/'+pltdata+'states.png')
+    plt.close()
 plotSpec('fSymtet_allHrnspc_justOThenCartOEck')
 plotSpec('fSymtet_allDrnspc_justOThenCartOEck')
