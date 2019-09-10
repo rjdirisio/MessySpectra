@@ -5,6 +5,7 @@ import numpy.linalg as la
 import matplotlib.pyplot as plt
 import scipy.linalg as sla
 import itertools
+import csv
 FundamentalShell = "Fundamentals_"
 exptlPeaks = "redH//allHTesting/spectraTesting/ExperimentalPeaksJCPL"
 VCIPeaks = "redH//allHTesting/spectraTesting/VCIPeaksJCPL"
@@ -43,7 +44,7 @@ class myPlot:
             elif '1He' in self.pltdata or '1De' in self.pltdata:
                 self.eShift = 250
             elif '1Hh' in self.pltdata or '1Dh' in self.pltdata:
-                self.eShift = 400
+                self.eShift = 300 #400
 
 
         self.mx = None
@@ -118,7 +119,89 @@ class myPlot:
         plt.savefig('Matrices/sortedCouplings_' + self.pltdata,dpi=500)
         plt.close()
 
-    def getContributionsAndPlot(self,chunkE,freqFunds,freqCombos,imat,evals,evecs,chunkAssign,fmat):
+    def getScatterCombos(self,chunkE,freqCombosOvers,mode,evecs,evals):
+        if 'tet' in self.pltdata:
+            if mode == "Symm":
+                fund = 6
+            elif mode == "Anti1":
+                fund = 7
+            elif mode == "Anti1":
+                fund = 8
+        else:
+            if mode == "Symm":
+                fund = 5
+            elif mode == "Anti":
+                fund = 6
+        #trimer
+            #allH - 5 = symm 6 = anti
+            #allD - 5 = symm 6 = anti
+            #1He - 5 OH stretch 6 = OD stretch
+            #1hw - 5  = symm 6 = anti
+            #1hh - 5  = symm 6 = anti
+        # tetramer
+            # allH - 6 = symm, 7,8 = anti
+            # allD - 6 = symm, 7,8 = anti
+            # 1He - 6 = shared H, 7,8 = symm IDB, anti IDB
+            # 1hw - 6 = symm, 7,8 = anti(2,1), and anti(1,1)
+        assignz = {}
+        k=0
+        with open("TransformationMatrix/newest/csv/TransformationMatrix"+self.pltdata+".csv",'rb') as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                if k != 0:
+                    assignz[k-1] = row[1]
+                k+=1
+
+        whereMatch = np.in1d(freqCombosOvers , np.diag(chunkE))
+        whereMatch2 = np.where(whereMatch)[0] #index where freqCombosOvers matches chunkE
+        evecInd = []
+        for state in whereMatch2:
+            evecInd.append(np.where(np.diag(chunkE)==freqCombosOvers[state])[0][0])
+        evecInd = np.array(evecInd)
+        assignList = []
+        for (x,y) in itertools.combinations(np.arange(self.nvibs),2):
+            assignList.append([x,y])
+        for x in np.arange(self.nvibs):
+            assignList.append([x,x])
+        assignList = np.array(assignList) #full combo and overtone indices
+
+        finalAssign = assignList[whereMatch2] #get combo numbers
+        indList = finalAssign[np.where(finalAssign[:,0] == fund)] #for which mode
+        indListAssign = []
+        for q in indList:
+            indListAssign.append(assignz[q[1]]) #assign
+
+        colors = iter(cm.rainbow(np.linspace(0, 1, len(indList))))
+        fig = plt.figure()
+        ax = plt.subplot(111)
+        for gh in range(len(indList)):
+            # if gh == 0:
+            #     col=[0,0,0,0]
+            # elif gh == 1:
+            #     col = [0, 0, 0, 0.5]
+            # else:
+            col = next(colors)
+            for nevs in range(len(evals)):
+                if nevs == 0:
+                    # plt.scatter(evals[nevs], np.square(evecs[indList[gh], nevs]), c=col,label=indListAssign[gh])
+                    ax.scatter(evals[nevs], np.square(evecs[evecInd[gh], nevs]), c=col, label=indListAssign[gh])
+                else:
+                    # plt.scatter(evals[nevs], np.square(evecs[indList[gh], nevs]), c=col)
+                    ax.scatter(evals[nevs], np.square(evecs[evecInd[gh], nevs]), c=col)
+        box = ax.get_position()
+        ax.set_position([box.x0,box.y0, box.width * 0.7,box.height])
+        ax.legend(loc='center left',bbox_to_anchor=(1,0.5),scatterpoints=1, fontsize=8)
+        # plt.legend(scatterpoints=1, fontsize=8)
+        plt.xlim([800, 4000])
+        plt.ylim([0, 1.1])
+        plt.savefig("ScatterCoefPlots/LowFreqContributions" + self.pltdata + assignz[indList[0,0]].replace(" ","")+"_shift"+str(self.eShift),dpi=500)
+        plt.close()
+
+
+    def getContributionsAndPlot(self,chunkE,freqFunds,freqCombosOvers,imat,evals,evecs,chunkAssign,fmat):
+        self.getScatterCombos(chunkE,freqCombosOvers,'Symm',evecs,evals)
+        self.getScatterCombos(chunkE, freqCombosOvers, 'Anti',evecs,evals)
+
         topC = open("topContributions/contr_"+self.pltdata,"w+")
         topC.write('E     I      State (pair)   Coef^2\n')
         for nevs in range(len(evals)):
@@ -148,47 +231,14 @@ class myPlot:
             someInd = np.argwhere(chunkE == freqFunds[6])[0][0]
             otherInd = np.argwhere(chunkE == freqFunds[7])[0][0]
             thirdInd = np.argwhere(chunkE == freqFunds[8])[0][0]
-                # indList = []
-                # Symm str tet, anti str tet1, anti str tet2
-                # indListAssign = ['Outer Water Rot. 1', 'Outer Water Rot. 2', 'Outer Water Rot. 3', 'Outer Water Rot. 4',
-                #                  'Hydronium in plane translation 1', 'Hydroinum in plane translation 2',
-                #                  'OO Stretch (Symm)',
-                #                  'Outer Water Rot. 5', 'Outer Water Rot. 6', 'Outer Water Rot. 7',
-                #                  'OO Stretch (Anti) 1',
-                #                  'OO Stretch (Anti) 2', 'Outer Water Rot. 8', 'Outer Water Rot. 9',
-                #                  'Hydroinum Out of plane movement']
-                #all H
-                # for gh in range(188,203): #Tet Symm
-                #     indList.append(np.argwhere(chunkE == freqCombos[gh])[0][0])
-                # for gh in range(213,228): #Tet Anti1
-                #     indList.append(np.argwhere(chunkE == freqCombos[gh])[0][0])
-                # for gh in range(237,252): #Tet Anti2
-                #     indList.append(np.argwhere(chunkE == freqCombos[gh])[0][0])
 
-                #all D
-                # indListAssign = ['Outer Water Rot. 3', 'Outer Water Rot. 4',
-                #                  'Hydroinum in plane translation 2',
-                #                  'OO Stretch (Symm)',
-                #                  'Outer Water Rot. 5', 'Outer Water Rot. 6', 'Outer Water Rot. 7',
-                #                  'OO Stretch (Anti) 1',
-                #                  'OO Stretch (Anti) 2', 'Outer Water Rot. 8', 'Outer Water Rot. 9',
-                #                  'Hydroinum Out of plane movement']
-                # Tet Symm
-                # for gh in  np.concatenate(([190,191],np.arange(193,203))):
-                #     indList.append(np.argwhere(chunkE == freqCombos[gh])[0][0])
-                # Tet Anti1
-                # for gh in  np.concatenate(([215,216],np.arange(218,228))):
-                #     indList.append(np.argwhere(chunkE == freqCombos[gh])[0][0])
-                # Tet Anti2
-                # for gh in  np.concatenate(([239,240],np.arange(242,252))):
-                #     indList.append(np.argwhere(chunkE == freqCombos[gh])[0][0])
 
 
         elif 'final' in self.pltdata:
             print 'hihi'
             if '1Hh' in self.pltdata:
-                someInd = np.argwhere(chunkE == freqFunds[4])[0][0]
-                otherInd = np.argwhere(chunkE == freqFunds[4])[0][0]
+                someInd = np.argwhere(chunkE == freqFunds[5])[0][0]
+                otherInd = np.argwhere(chunkE == freqFunds[6])[0][0]
             elif 'all' in self.pltdata:
                 someInd = np.argwhere(chunkE == freqFunds[5])[0][0]
                 otherInd = np.argwhere(chunkE == freqFunds[6])[0][0]
@@ -461,7 +511,7 @@ class myPlot:
                 #2658
                 self.center = np.argwhere(sortedCouplings == freqFunds[5])[0, 0]
         else:
-            if 'allH' in self.pltdata:
+            if 'allH' in self.pltdata or 'allD' in self.pltdata:
                 # self.center = np.argwhere(sortedCouplings == freqCombos[134])[0, 0] #2069.3734
                 self.center = np.argwhere(sortedCouplings == freqFunds[5])[0, 0]
                 # if 'Then' in self.pltdata:
@@ -472,6 +522,7 @@ class myPlot:
                 self.center = np.argwhere(sortedCouplings == freqFunds[6])[0, 0]
             elif '1He' in self.pltdata:
                 #1855.1322272585126   0.00010951344816488748       6 17
+                # 6 is the antisymmetric shared proton OD Stretch
                 self.center = np.argwhere(sortedCouplings == freqCombos[133])[0, 0]
             else:
                 self.center = np.argwhere(sortedCouplings == freqFunds[6])[0, 0]
@@ -486,7 +537,7 @@ class myPlot:
         if 'tet' in self.pltdata and  ('1Hw' in self.pltdata or '1Dw' in self.pltdata):
                 print('skipping contribs')
         else:
-            self.getContributionsAndPlot(chunkE, freqFunds, freqCombos, imat, evals, evecs, chunkAssign, fmat)
+            self.getContributionsAndPlot(chunkE, freqFunds, np.concatenate((freqCombos,freqOvers)),imat, evals, evecs, chunkAssign, fmat)
         return evals, imat
 
     def MartinCouplings(self,chunkE):
@@ -724,20 +775,20 @@ class myPlot:
 # mp = myPlot('TrimerNewDefsEck','final_allHrnspc_finalVersion_SPC_BasedOnOs',mix=False,stix=True,pltVCI=False)
 # mp.plotSpec()
 #
-# mp = myPlot('TrimerNewDefsEck','final_allHrnspc_finalVersion_SPC_BasedOnOs',mix=True,stix=True,pltVCI=False)
-# mp.plotSpec()
-#
+mp = myPlot('TrimerNewDefsEck','final_allHrnspc_finalVersion_SPC_BasedOnOs',mix=True,stix=True,pltVCI=False)
+mp.plotSpec()
+
 # mp = myPlot('TrimerNewDefsEck','final_allDrnspc_finalVersion_SPC_BasedOnOs',mix=False,stix=True,pltVCI=False)
 # mp.plotSpec()
-#
-# mp = myPlot('TrimerNewDefsEck','final_allDrnspc_finalVersion_SPC_BasedOnOs',mix=True,stix=True,pltVCI=False)
-# mp.plotSpec()
+
+mp = myPlot('TrimerNewDefsEck','final_allDrnspc_finalVersion_SPC_BasedOnOs',mix=True,stix=True,pltVCI=False)
+mp.plotSpec()
 #
 # mp = myPlot('TrimerNewDefsEck','final__1Hwrnspc_finalVersion_SPC_BasedOnOs',mix=False,stix=True,pltVCI=False)
 # mp.plotSpec()
-#
-# mp = myPlot('TrimerNewDefsEck','final__1Hwrnspc_finalVersion_SPC_BasedOnOs',mix=True,stix=True,pltVCI=False)
-# mp.plotSpec()
+
+mp = myPlot('TrimerNewDefsEck','final__1Hwrnspc_finalVersion_SPC_BasedOnOs',mix=True,stix=True,pltVCI=False)
+mp.plotSpec()
 # #
 # mp = myPlot('TrimerNewDefsEck','final__1Dwrnspc_finalVersion_SPC_BasedOnOs',mix=False,stix=True,pltVCI=False)
 # mp.plotSpec()
@@ -748,20 +799,20 @@ class myPlot:
 # mp = myPlot('TrimerNewDefsEck','final__1Hernspc_finalVersion_SPC_BasedOnOs',mix=False,stix=True,pltVCI=False)
 # mp.plotSpec()
 #
-# mp = myPlot('TrimerNewDefsEck','final__1Hernspc_finalVersion_SPC_BasedOnOs',mix=True,stix=True,pltVCI=False)
-# mp.plotSpec()
+mp = myPlot('TrimerNewDefsEck','final__1Hernspc_finalVersion_SPC_BasedOnOs',mix=True,stix=True,pltVCI=False)
+mp.plotSpec()
 
 # mp = myPlot('TrimerNewDefsEck','final__1Dernspc_finalVersion_SPC_BasedOnOs',mix=False,stix=True,pltVCI=False)
 # mp.plotSpec()
 #
 # mp = myPlot('TrimerNewDefsEck','final__1Dernspc_finalVersion_SPC_BasedOnOs',mix=True,stix=True,pltVCI=False)
 # mp.plotSpec()
+#
+# mp = myPlot('TrimerNewDefsEck','final__1Hhrnspc_finalVersion_SPC_BasedOnOs_fix',mix=False,stix=True,pltVCI=False)
+# mp.plotSpec()
 
-mp = myPlot('TrimerNewDefsEck','final__1Hhrnspc_finalVersion_SPC_BasedOnOs',mix=False,stix=True,pltVCI=False)
-mp.plotSpec()
-
-mp = myPlot('TrimerNewDefsEck','final__1Hhrnspc_finalVersion_SPC_BasedOnOs',mix=True,stix=True,pltVCI=False)
-mp.plotSpec()
+# mp = myPlot('TrimerNewDefsEck','final__1Hhrnspc_finalVersion_SPC_BasedOnOs_fix',mix=True,stix=True,pltVCI=False)
+# mp.plotSpec()
 
 # mp = myPlot('TrimerNewDefsEck','final__1Dhrnspc_finalVersion_SPC_BasedOnOs',mix=False,stix=True,pltVCI=False)
 # mp.plotSpec()
