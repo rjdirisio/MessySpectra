@@ -11,7 +11,7 @@ ComboShell = "combinationOverrtone_"
 #7       1869.810029038624   0.051695242922013974
 allD=2050
 allH=2600
-def plotSpec(pltdata):
+def plotStates(pltdata):
     interest = np.loadtxt(FundamentalShell + pltdata)
     interestfreqs = interest[:, 1]
     interest2 = np.loadtxt(ComboShell + pltdata + ".data2")
